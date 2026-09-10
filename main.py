@@ -6,7 +6,6 @@ from app.database import engine, SessionLocal
 models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
-#DELETE /habits/{habit_id} — deletes the matching habit (with a 404 if it doesn't exist), returns some confirmation.
 def get_db():
     db = SessionLocal()
     try: 
@@ -34,7 +33,7 @@ def get_habit(habit_id: int, db: Session = Depends(get_db)):
     return habit
 
 @app.delete("/habits/{habit_id}")
-def deelte_habit(habit_id: int, db: Session = Depends(get_db)):
+def delte_habit(habit_id: int, db: Session = Depends(get_db)):
     habit = db.get(models.Habits, habit_id)
     if habit is None:
         raise HTTPException(status_code=404, detail="Habit not found")
