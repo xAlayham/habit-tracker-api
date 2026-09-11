@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from .database import Base
 class Habits(Base):
     __tablename__ = "habits"
@@ -7,6 +7,7 @@ class Habits(Base):
     name = Column(String, nullable=False)
     frequency = Column(String, nullable= False)
     completed = Column(Boolean, default=False, nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"),nullable=False)
 
 class User(Base):
     __tablename__ = "users"
