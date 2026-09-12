@@ -33,7 +33,7 @@ def get_habit(habit_id: int, db: Session = Depends(database.get_db), current_use
         raise HTTPException(status_code=403, detail="Not authorized to access this habit")
     return habit
 
-@app.delete("/habits/{habit_id}", response_model=schemas.HabitOut)
+@app.delete("/habits/{habit_id}")
 def delete_habit(habit_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     habit = db.get(models.Habits, habit_id)
     if habit is None:
@@ -42,7 +42,7 @@ def delete_habit(habit_id: int, db: Session = Depends(database.get_db), current_
         raise HTTPException(status_code=403, detail="Not authorized to access this habit")
     db.delete(habit)
     db.commit()
-    return {"deleted": habit_id}
+    return {"message": "Habit successfully deleted"}
 
 @app.get("/")
 def get_api_info():
