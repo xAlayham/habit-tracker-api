@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from app import models
 from app.database import engine
@@ -10,7 +11,9 @@ app = FastAPI()
 app.include_router(users.router)
 app.include_router(habits.router)
 
-origins = ["http://localhost:5173"]
+# Comma-separated list of allowed frontend origins, e.g.
+# "http://localhost:5173,https://your-app.vercel.app"
+origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
 
 app.add_middleware(
     CORSMiddleware,
