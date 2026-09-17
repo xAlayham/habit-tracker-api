@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 from datetime import date
 
@@ -10,7 +10,7 @@ class FrequencyEnum(str, Enum):
     YEARLY = "yearly"
 
 class HabitCreate(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=100)
     frequency: FrequencyEnum
 
 class HabitOut(BaseModel):
@@ -23,8 +23,8 @@ class HabitOut(BaseModel):
     last_completed_date: date | None = None
 
 class UserCreate(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=8, max_length=100)
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
