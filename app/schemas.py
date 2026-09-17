@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from enum import Enum
+from datetime import date
 
 
 class FrequencyEnum(str, Enum):
@@ -18,6 +19,8 @@ class HabitOut(BaseModel):
     name: str
     frequency: FrequencyEnum
     completed: bool
+    streak_count: int
+    last_completed_date: date | None = None
 
 class UserCreate(BaseModel):
     username: str
