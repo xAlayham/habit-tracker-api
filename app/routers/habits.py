@@ -16,6 +16,44 @@ def get_owned_habit_or_404(habit_id: int, db: Session, current_user: models.User
         raise HTTPException(status_code=403, detail="Not authorized to access this habit")
     return habit
 
+def period_key(d: date, frequency: str):
+    """A value that's equal for any two dates falling in the same period for this frequency."""
+    if frequency == "weekly":
+        iso_year, iso_week, _ = d.isocalendar()
+        return (iso_year, iso_week)
+    if frequency == "monthly":
+        return (d.year, d.month)
+    if frequency == "yearly":
+        return (d.year,)
+    return (d.year, d.month, d.day)  # daily, and fallback
+
+def previous_period_key(d: date, frequency: str):
+    """The period_key for whichever period comes immediately before d's period."""
+    if frequency == "weekly":
+        return period_key(d - timedelta(days=7), frequency)
+    if frequency == "monthly":
+        last_day_of_prev_month = d.replace(day=1) - timedelta(days=1)
+        return period_key(last_day_of_prev_month, frequency)
+    if frequency == "yearly":
+        return (d.year - 1,)
+    return period_key(d - timedelta(days=1), frequency)  # daily, and fallback
+
+def is_done_this_period(habit: models.Habits, today: date) -> bool:
+    if habit.last_completed_date is None:
+        return False
+    return period_key(habit.last_completed_date, habit.frequency) == period_key(today, habit.frequency)
+
+def to_habit_out(habit: models.Habits) -> schemas.HabitOut:
+    """Build the response with `completed` computed fresh from last_completed_date, never trusting a stale stored flag."""
+    return schemas.HabitOut(
+        id=habit.id,
+        name=habit.name,
+        frequency=habit.frequency,
+        completed=is_done_this_period(habit, date.today()),
+        streak_count=habit.streak_count,
+        last_completed_date=habit.last_completed_date,
+    )
+
 @router.post("", response_model=schemas.HabitOut, summary="Create a new habit")
 def create_habit(habit: schemas.HabitCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     """Create a habit owned by the current authenticated user."""
@@ -23,31 +61,34 @@ def create_habit(habit: schemas.HabitCreate, db: Session = Depends(database.get_
     db.add(new_habit)
     db.commit()
     db.refresh(new_habit)
-    return new_habit
+    return to_habit_out(new_habit)
 
 @router.get("", response_model=list[schemas.HabitOut], summary="List your habits")
 def list_habits(db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     """Return all habits belonging to the current authenticated user."""
-    return db.query(models.Habits).filter(models.Habits.owner_id == current_user.id).all()
+    habits = db.query(models.Habits).filter(models.Habits.owner_id == current_user.id).all()
+    return [to_habit_out(habit) for habit in habits]
 
 @router.get("/{habit_id}", response_model=schemas.HabitOut, summary="Get a single habit")
 def get_habit(habit_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
     """Return one habit by ID, if it belongs to the current user."""
-    return get_owned_habit_or_404(habit_id, db, current_user)
+    habit = get_owned_habit_or_404(habit_id, db, current_user)
+    return to_habit_out(habit)
 
-@router.patch("/{habit_id}/complete", response_model=schemas.HabitOut, summary="Toggle a habit's completion and update its streak")
+@router.patch("/{habit_id}/complete", response_model=schemas.HabitOut, summary="Toggle a habit's completion for the current period and update its streak")
 def complete_habit(habit_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
-    """Toggle completion for a habit. Marking it complete updates the streak; un-marking leaves the streak untouched."""
+    """Toggle completion for the CURRENT period (day/week/month/year, based on frequency) and keep the streak in sync."""
     habit = get_owned_habit_or_404(habit_id, db, current_user)
     today = date.today()
 
-    if habit.completed:
-        habit.completed = False
+    if is_done_this_period(habit, today):
+        # already done this period -> undo it
+        habit.last_completed_date = None
+        habit.streak_count = max(habit.streak_count - 1, 0)
     else:
-        habit.completed = True
-        if habit.last_completed_date == today:
-            pass
-        elif habit.last_completed_date == today - timedelta(days=1):
+        # not done this period yet -> mark it, and extend the streak only if the
+        # previous completion was in the immediately preceding period
+        if habit.last_completed_date is not None and period_key(habit.last_completed_date, habit.frequency) == previous_period_key(today, habit.frequency):
             habit.streak_count += 1
         else:
             habit.streak_count = 1
@@ -55,7 +96,7 @@ def complete_habit(habit_id: int, db: Session = Depends(database.get_db), curren
 
     db.commit()
     db.refresh(habit)
-    return habit
+    return to_habit_out(habit)
 
 @router.delete("/{habit_id}", summary="Delete a habit")
 def delete_habit(habit_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
