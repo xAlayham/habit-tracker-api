@@ -42,14 +42,21 @@ pytest -v
 
 Full interactive docs (Swagger UI) are available at `/docs` once the server is running.
 
-| Method | Path                  | Description                          |
-|--------|-----------------------|---------------------------------------|
-| GET    | `/`                   | API info                              |
-| POST   | `/users/register`     | Register a new user                   |
-| POST   | `/users/login`        | Log in and receive a JWT access token |
-| POST   | `/habits`              | Create a new habit                    |
-| GET    | `/habits`              | List your habits                      |
-| GET    | `/habits/{habit_id}`   | Get a single habit                    |
-| DELETE | `/habits/{habit_id}`   | Delete a habit                        |
+| Method | Path                          | Description                                          |
+|--------|-------------------------------|-------------------------------------------------------|
+| GET    | `/`                           | API info                                              |
+| POST   | `/users/register`             | Register a new user                                   |
+| POST   | `/users/login`                | Log in and receive a JWT access token                 |
+| POST   | `/habits`                     | Create a new habit                                    |
+| GET    | `/habits`                     | List your habits                                      |
+| GET    | `/habits/{habit_id}`          | Get a single habit                                    |
+| PATCH  | `/habits/{habit_id}/complete` | Toggle completion for the current period, updates streak |
+| DELETE | `/habits/{habit_id}`          | Delete a habit                                        |
 
 All `/habits` endpoints require a valid JWT access token (obtained via `/users/login`) sent as a Bearer token.
+
+A habit's `frequency` is one of `daily`, `weekly`, `monthly`, or `yearly`. This determines what counts as the "current period" for `PATCH /habits/{habit_id}/complete`: e.g. for a `weekly` habit, completing it once anywhere in the ISO week satisfies that week, and the streak only continues if the previous completion fell in the immediately preceding period (day/week/month/year).
+
+## Notes on Persistence
+
+This project uses SQLite (`habits.db`) for simplicity. If deployed on a host with an ephemeral filesystem (e.g. Render's free tier), the database file can be wiped on redeploy or restart, losing all data. For production use, migrate to a persistent database like PostgreSQL.

@@ -4,3 +4,4 @@ __pycache__/
 .env
 habits.db
 test.db
+.pytest_cache/
