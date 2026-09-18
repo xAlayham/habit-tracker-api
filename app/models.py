@@ -9,6 +9,7 @@ class Habits(Base):
     completed = Column(Boolean, default=False, nullable=False)
     streak_count = Column(Integer, default=0, nullable=False)
     last_completed_date = Column(Date, nullable=True)
+    previous_completed_date = Column(Date, nullable=True)
     owner_id = Column(Integer, ForeignKey("users.id"),nullable=False)
 
 class User(Base):

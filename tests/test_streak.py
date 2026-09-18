@@ -159,3 +159,58 @@ def test_yearly_streak_resets_after_a_skipped_year(client, auth_headers, freeze_
     body = complete(client, auth_headers, habit_id)
 
     assert body["streak_count"] == 1
+
+
+def test_undo_then_redo_restores_the_streak(client, auth_headers, freeze_date):
+    """Regression test: undo used to wipe last_completed_date to None, so a
+    follow-up completion couldn't tell it was continuing a streak and reset
+    to 1 instead of restoring it."""
+    habit_id = create_habit(client, auth_headers, frequency="daily")
+
+    freeze_date(date(2024, 1, 1))
+    complete(client, auth_headers, habit_id)  # streak 1
+
+    freeze_date(date(2024, 1, 2))
+    complete(client, auth_headers, habit_id)  # streak 2
+
+    freeze_date(date(2024, 1, 3))
+    body = complete(client, auth_headers, habit_id)  # streak 3
+    assert body["streak_count"] == 3
+
+    body = complete(client, auth_headers, habit_id)  # undo -> back to 2
+    assert body["completed"] is False
+    assert body["streak_count"] == 2
+    assert body["last_completed_date"] == "2024-01-02"
+
+    body = complete(client, auth_headers, habit_id)  # redo -> continues to 3, not reset to 1
+    assert body["completed"] is True
+    assert body["streak_count"] == 3
+    assert body["last_completed_date"] == "2024-01-03"
+
+
+def test_missed_days_report_zero_streak_without_touching_the_habit(client, auth_headers, freeze_date):
+    """Regression test: streak_count on the stored habit only resets on the
+    next completion, so a habit left untouched kept reporting its old streak
+    forever. The displayed streak should read 0 once a period has been missed."""
+    habit_id = create_habit(client, auth_headers, frequency="daily")
+
+    freeze_date(date(2024, 1, 1))
+    complete(client, auth_headers, habit_id)  # streak 1
+
+    freeze_date(date(2024, 1, 2))
+    complete(client, auth_headers, habit_id)  # streak 2
+
+    # Still within the grace period (yesterday) -> streak still shown as alive.
+    freeze_date(date(2024, 1, 3))
+    res = client.get(f"/habits/{habit_id}", headers=auth_headers)
+    assert res.json()["streak_count"] == 2
+
+    # 19 days untouched -> long past the previous period, should read as 0.
+    freeze_date(date(2024, 1, 21))
+    res = client.get(f"/habits/{habit_id}", headers=auth_headers)
+    body = res.json()
+
+    assert body["completed"] is False
+    assert body["streak_count"] == 0
+    # the underlying record is untouched until the next completion
+    assert body["last_completed_date"] == "2024-01-02"

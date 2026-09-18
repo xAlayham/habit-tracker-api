@@ -43,14 +43,31 @@ def is_done_this_period(habit: models.Habits, today: date) -> bool:
         return False
     return period_key(habit.last_completed_date, habit.frequency) == period_key(today, habit.frequency)
 
+def effective_streak_count(habit: models.Habits, today: date) -> int:
+    """The streak as of `today`, without mutating the stored value.
+
+    streak_count only gets reset by the next completion, so a habit left
+    untouched keeps reporting its old streak indefinitely. A streak is only
+    still "alive" if its last completion falls in the current period (already
+    done) or the immediately preceding one (still time to keep it going) —
+    anything older means one or more periods were missed, so it reads as 0.
+    """
+    if habit.last_completed_date is None:
+        return 0
+    last_key = period_key(habit.last_completed_date, habit.frequency)
+    if last_key == period_key(today, habit.frequency) or last_key == previous_period_key(today, habit.frequency):
+        return habit.streak_count
+    return 0
+
 def to_habit_out(habit: models.Habits) -> schemas.HabitOut:
-    """Build the response with `completed` computed fresh from last_completed_date, never trusting a stale stored flag."""
+    """Build the response with `completed` and `streak_count` computed fresh, never trusting stale stored values."""
+    today = date.today()
     return schemas.HabitOut(
         id=habit.id,
         name=habit.name,
         frequency=habit.frequency,
-        completed=is_done_this_period(habit, date.today()),
-        streak_count=habit.streak_count,
+        completed=is_done_this_period(habit, today),
+        streak_count=effective_streak_count(habit, today),
         last_completed_date=habit.last_completed_date,
     )
 
@@ -82,8 +99,10 @@ def complete_habit(habit_id: int, db: Session = Depends(database.get_db), curren
     today = date.today()
 
     if is_done_this_period(habit, today):
-        # already done this period -> undo it
-        habit.last_completed_date = None
+        # already done this period -> undo it, restoring whatever completion
+        # date this one replaced so a follow-up redo can tell the streak continues
+        habit.last_completed_date = habit.previous_completed_date
+        habit.previous_completed_date = None
         habit.streak_count = max(habit.streak_count - 1, 0)
     else:
         # not done this period yet -> mark it, and extend the streak only if the
@@ -92,6 +111,7 @@ def complete_habit(habit_id: int, db: Session = Depends(database.get_db), curren
             habit.streak_count += 1
         else:
             habit.streak_count = 1
+        habit.previous_completed_date = habit.last_completed_date
         habit.last_completed_date = today
 
     db.commit()

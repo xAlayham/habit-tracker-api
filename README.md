@@ -1,6 +1,12 @@
-# Habit API
+# Habit Tracker API
 
-A backend API for tracking personal habits. Users register and log in with JWT-based authentication, then create, list, view, and delete their own habits — each user can only see and manage habits they own.
+![Tests](https://github.com/xAlayham/habit-tracker-api/actions/workflows/tests.yml/badge.svg)
+
+A backend API for tracking personal habits. Users register and log in with JWT-based authentication, then create, list, view, complete, and delete their own habits — each user can only see and manage habits they own. Completing a habit tracks a streak, based on the habit's frequency (daily, weekly, monthly, or yearly).
+
+**Live API:** https://habit-tracker-api-8zgs.onrender.com/ — interactive docs at [/docs](https://habit-tracker-api-8zgs.onrender.com/docs)
+
+**Frontend:** [habit-tracker-web](https://habit-tracker-web-alpha.vercel.app/), a companion app that consumes this API.
 
 ## Tech Stack
 
@@ -42,6 +48,8 @@ pytest -v
 
 Full interactive docs (Swagger UI) are available at `/docs` once the server is running.
 
+![Swagger UI showing all endpoints](docs/swagger-screenshot.png)
+
 | Method | Path                          | Description                                          |
 |--------|-------------------------------|-------------------------------------------------------|
 | GET    | `/`                           | API info                                              |
@@ -60,3 +68,7 @@ A habit's `frequency` is one of `daily`, `weekly`, `monthly`, or `yearly`. This 
 ## Notes on Persistence
 
 This project uses SQLite (`habits.db`) for simplicity. If deployed on a host with an ephemeral filesystem (e.g. Render's free tier), the database file can be wiped on redeploy or restart, losing all data. For production use, migrate to a persistent database like PostgreSQL.
+
+## Known Limitations
+
+- **Streak day boundaries use server time.** Completion periods are computed from `date.today()` on the server, which runs in UTC on Render. A user's "day" therefore rolls over at UTC midnight rather than their own local midnight, so a completion made late at night in some timezones could land in the "wrong" day or week. Fine for now; a proper fix would take the user's timezone into account.
